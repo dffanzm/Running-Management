@@ -1,157 +1,180 @@
 import {
-  Poppins_400Regular,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
+  Urbanist_400Regular,
+  Urbanist_700Bold,
   useFonts,
-} from "@expo-google-fonts/poppins";
-import { useRouter } from "expo-router";
-import React from "react";
+} from "@expo-google-fonts/urbanist";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  ImageBackground,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import * as Animatable from "react-native-animatable";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function HomeScreen() {
-  const router = useRouter();
+import TopSection from "./TopSection"; // Section 1
 
+// --- Warna utama dan style global ---
+const PRIMARY_COLOR = "#1C315E";
+const INACTIVE_COLOR = "gray";
+const BUTTON_COLOR = "#112952";
+
+// ==========================================================
+// SECTION 3 — Bottom Navbar
+// ==========================================================
+const BottomNavbar: React.FC = () => {
+  return (
+    <View style={styles.navbarContainer}>
+      <TouchableOpacity
+        style={styles.navItem}
+        onPress={() => console.log("Home")}
+      >
+        <Ionicons name="home" size={26} color={PRIMARY_COLOR} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.navItem}
+        onPress={() => console.log("Calendar")}
+      >
+        <Ionicons name="calendar-outline" size={26} color={INACTIVE_COLOR} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.navItem}
+        onPress={() => console.log("Club")}
+      >
+        <Ionicons name="star-outline" size={26} color={INACTIVE_COLOR} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.navItem}
+        onPress={() => console.log("Profile")}
+      >
+        <Ionicons name="person-outline" size={26} color={INACTIVE_COLOR} />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+// ==========================================================
+// SECTION 2 — Tombol "CREATE YOUR CLUB"
+// ==========================================================
+const CreateClubButton: React.FC = () => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <Pressable
+      onPress={() => console.log("Navigate to Create Club")}
+      onHoverIn={() => setIsHovered(true)}
+      onHoverOut={() => setIsHovered(false)}
+      style={[
+        styles.createClubButton,
+        isHovered && { opacity: 0.85, transform: [{ scale: 1.02 }] },
+      ]}
+    >
+      <Text style={styles.createClubText}>CREATE YOUR CLUB</Text>
+    </Pressable>
+  );
+};
+
+// ==========================================================
+// MAIN APP
+// ==========================================================
+export default function App() {
   const [fontsLoaded] = useFonts({
-    Poppins_400Regular,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
+    "Urbanist-Bold": Urbanist_700Bold,
+    "Urbanist-Regular": Urbanist_400Regular,
   });
 
-  // Loading spinner saat font belum siap
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#facc15" />
+        <Text>Memuat Font...</Text>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Background retro */}
-      <ImageBackground
-        source={{
-          uri: "https://i.ibb.co/vq4kKc1/pixel-background.gif",
-        }}
-        resizeMode="cover"
-        style={styles.bgImage}
-      >
-        {/* Teks utama */}
-        <Animatable.Text
-          animation="fadeInDown"
-          duration={1000}
-          style={styles.title}
-        >
-          SELAMAT DATANG
-        </Animatable.Text>
+    <View style={styles.appContainer}>
+      {/* SECTION 1: Foto + teks sambutan */}
+      <View style={styles.contentWrapper}>
+        <TopSection />
 
-        {/* Subjudul */}
-        <Animatable.Text
-          animation="fadeInUp"
-          delay={400}
-          style={styles.subtitle}
-        >
-          RunAnywhere{"\n"}
-          <Text style={{ color: "#38bdf8" }}>
-            lari dimana saja, kapan saja!
-          </Text>
-        </Animatable.Text>
+        {/* SECTION 2: Tombol utama */}
+        <View style={styles.middleSection}>
+          <CreateClubButton />
+        </View>
 
-        {/* Tombol Lanjut */}
-        <Animatable.View
-          animation="pulse"
-          iterationCount="infinite"
-          delay={1000}
-        >
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => router.push("/next")}
-          >
-            <Text style={styles.buttonText}>Tekan untuk Lanjut ➡</Text>
-          </TouchableOpacity>
-        </Animatable.View>
+        {/* Ruang kosong di bawah (bisa diisi konten lain nanti) */}
+        <View style={styles.remainingContent} />
+      </View>
 
-        {/* Animasi Mario vs Bowser */}
-        <Animatable.View
-          animation="fadeInUp"
-          delay={1500}
-          style={styles.pixelContainer}
-        >
-          <Image
-            source={{
-              uri: "https://media.tenor.com/Pe2zphsAcL0AAAAC/mario-vs-bowser.gif",
-            }}
-            style={styles.pixelFight}
-          />
-        </Animatable.View>
-      </ImageBackground>
-    </SafeAreaView>
+      {/* SECTION 3: Navbar di bawah */}
+      <BottomNavbar />
+    </View>
   );
 }
 
+// ==========================================================
+// STYLE
+// ==========================================================
 const styles = StyleSheet.create({
+  appContainer: {
+    flex: 1,
+    backgroundColor: "white",
+  },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#0f172a",
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "white",
   },
-  container: {
+  contentWrapper: {
     flex: 1,
-    backgroundColor: "#0f172a",
   },
-  bgImage: {
+  remainingContent: {
     flex: 1,
+    backgroundColor: "white",
+  },
+
+  // SECTION 2 — Tombol utama
+  middleSection: {
     alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-    height: "100%",
+    marginTop: 30,
   },
-  title: {
-    color: "#facc15",
-    fontSize: 30,
-    fontFamily: "Poppins_700Bold",
-    marginBottom: 10,
-    textShadowColor: "#000",
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 3,
+  createClubButton: {
+    backgroundColor: BUTTON_COLOR,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    transitionDuration: "200ms", // hanya aktif di web
   },
-  subtitle: {
-    color: "#e2e8f0",
+  createClubText: {
+    color: "white",
     fontSize: 18,
-    fontFamily: "Poppins_400Regular",
-    textAlign: "center",
-    marginBottom: 40,
+    fontFamily: "Urbanist-Bold",
+    letterSpacing: 1,
   },
-  button: {
-    backgroundColor: "#38bdf8",
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 30,
-    elevation: 6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 16,
-  },
-  pixelContainer: {
-    marginTop: 60,
+
+  // SECTION 3 — Bottom Navbar
+  navbarContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
     alignItems: "center",
+    backgroundColor: "white",
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+    height: 70,
+    paddingBottom: 5,
   },
-  pixelFight: {
-    width: 250,
-    height: 120,
-    resizeMode: "contain",
+  navItem: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
   },
 });
