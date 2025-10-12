@@ -1,144 +1,138 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { router, usePathname } from "expo-router";
 import React from "react";
-// Impor properti yang dibutuhkan untuk typing
 import {
+  Platform,
   StyleSheet,
   TouchableOpacity,
   TouchableOpacityProps,
   View,
 } from "react-native";
 
-// Warna primer (biru tua) yang Anda gunakan di aplikasi Anda
+// Warna global
 const PRIMARY_COLOR = "#1C315E";
 const INACTIVE_COLOR = "#888";
-const HOVER_COLOR = "#f0f0f0"; // Warna background saat hover (abu-abu sangat terang)
+const HOVER_COLOR = "#f0f0f0";
 
-// --- FIX TYPESCRIPT: Definisi Tipe Hover Khusus Web ---
-// Kita tambahkan properti 'hoverStyle' di sini
 interface WebHoverProps {
   onMouseEnter?: (event: any) => void;
   onMouseLeave?: (event: any) => void;
-  hoverStyle?: any; // Tambahkan hoverStyle untuk Web
 }
 
-// Gabungkan props NavItem dengan props Hover khusus Web
+// Gabungkan props NavItem
 type NavItemProps = {
+  iconLibrary?: any;
   iconName: string;
   active: boolean;
   size: number;
   onPress: () => void;
 } & TouchableOpacityProps &
   WebHoverProps;
-// ----------------------------------------------------
 
-// Komponen NavItem yang menangani status hover dan TypeScript
+// ============================================================
+// Komponen NavItem
+// ============================================================
 const NavItem: React.FC<NavItemProps> = ({
+  iconLibrary,
   iconName,
   active,
   size,
   onPress,
   ...rest
 }) => {
-  // Gunakan rest untuk menangkap props tambahan
+  const IconComponent = iconLibrary || Ionicons;
+  const [isHovered, setIsHovered] = React.useState(false);
 
-  // State untuk melacak status hover tidak lagi diperlukan, karena kita menggunakan hoverStyle
-  // const [isHovered, setIsHovered] = useState(false); // Dihapus
+  const color = active ? PRIMARY_COLOR : INACTIVE_COLOR;
 
-  // Tentukan warna ikon
-  const isStar = iconName === "star";
-  const color = active || isStar ? PRIMARY_COLOR : INACTIVE_COLOR;
-  const iconSize = isStar ? 32 : size;
-
-  // Tentukan gaya item utama
   const itemStyle = [
     styles.navItem,
-    // Pisahkan item terakhir dari border kanan
     iconName !== "person-outline" && styles.separator,
+    Platform.OS === "web" && isHovered && { backgroundColor: HOVER_COLOR },
   ];
 
   return (
     <TouchableOpacity
       style={itemStyle}
       onPress={onPress}
-      // --- IMPLEMENTASI HOVER YANG STABIL DI WEB ---
-      // Gunakan hoverStyle (hanya berfungsi di Web, diabaikan di Native)
-      hoverStyle={
-        {
-          // Transisi harus didefinisikan di sini untuk properti hover
-          transitionDuration: "200ms",
-          opacity: 0.8,
-          backgroundColor: HOVER_COLOR,
-        } as any
-      }
-      // Hilangkan onMouseEnter/onMouseLeave, karena hoverStyle mengurus semuanya
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      activeOpacity={0.7}
       {...rest}
     >
-      <Ionicons name={iconName as any} size={iconSize} color={color} />
+      <IconComponent name={iconName} size={size} color={color} />
     </TouchableOpacity>
   );
 };
 
+// ============================================================
+// Komponen Utama Navbar
+// ============================================================
 const BottomNavbar: React.FC = () => {
+  const pathname = usePathname();
+
   return (
     <View style={styles.navbarContainer}>
-                  {/* 1. Home Button */}           {" "}
+      {/* 1. Home */}
       <NavItem
         iconName="home"
-        active={true} // Home aktif saat ini
+        active={pathname === "/"}
         size={26}
-        onPress={() => console.log("Home")}
+        onPress={() => router.push("./Home")}
       />
-                  {/* 2. Calendar Button */}           {" "}
+
+      {/* 2. Calendar */}
       <NavItem
         iconName="calendar-outline"
-        active={false}
+        active={pathname === "/Calendar"}
         size={26}
-        onPress={() => console.log("Calendar")}
+        onPress={() => router.push("/Calendar")}
       />
-                  {/* 3. Club Button (Star) - Ditegaskan */}           {" "}
+
+      {/* 3. Club */}
       <NavItem
-        iconName="star" // ikon solid untuk penegasan
-        active={false} // Ukuran dan warna diatur di dalam NavItem
+        iconLibrary={MaterialCommunityIcons}
+        iconName={
+          pathname === "/CreateClub" ? "account-group" : "account-group-outline"
+        }
+        active={pathname === "/CreateClub"}
         size={26}
-        onPress={() => console.log("Club")}
+        onPress={() => router.push("/CreateClub")}
       />
-                  {/* 4. Profile Button */}           {" "}
+
+      {/* 4. Profile */}
       <NavItem
         iconName="person-outline"
-        active={false}
+        active={pathname === "/Profile"}
         size={26}
-        onPress={() => console.log("Profile")}
+        onPress={() => router.push("/Profile")}
       />
-               {" "}
     </View>
   );
 };
 
+// ============================================================
+// STYLE
+// ============================================================
 const styles = StyleSheet.create({
-  // --- Style Navbar Container ---
   navbarContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "white",
 
-    // Garis di sekeliling navbar (kotak)
     borderWidth: 1,
     borderColor: "#e0e0e0",
-    borderRadius: 10, // opsional: biar sudutnya melengkung
-
+    borderRadius: 10,
     height: 70,
     paddingBottom: 5,
-    paddingHorizontal: 0,
 
-    // Tambahan opsional agar efek "box" makin jelas
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-    elevation: 3, // efek bayangan di Android
+    elevation: 3,
   },
 
-  // --- Style Item Navigasi ---
   navItem: {
     flex: 1,
     alignItems: "center",
@@ -146,7 +140,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
 
-  // --- Style Pemisah Vertikal ---
   separator: {
     borderRightWidth: 1,
     borderRightColor: "#f0f0f0",

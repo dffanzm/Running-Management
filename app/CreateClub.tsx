@@ -1,14 +1,17 @@
-// CreateClub.tsx
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const CreateClub: React.FC = () => {
+export default function CreateClubScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Create Club Screen (Masih Kosong)</Text>
-    </View>
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Create Your Club</Text>
+      <Text style={styles.desc}>
+        Di sini nanti kamu bisa isi form untuk bikin klub baru.
+      </Text>
+    </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -17,10 +20,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "white",
   },
-  text: {
-    fontSize: 20,
+  title: {
+    fontSize: 26,
+    fontWeight: "bold",
+    color: "#1C315E",
+  },
+  desc: {
+    marginTop: 10,
+    fontSize: 16,
     color: "gray",
   },
 });
-
-export default CreateClub;
