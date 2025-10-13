@@ -1,37 +1,42 @@
 import { Stack, usePathname } from "expo-router";
 import React from "react";
 import { StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BottomNavbar from "./BottomNavbar";
 
 export default function RootLayout() {
   const pathname = usePathname();
-
-  // Halaman yang tidak menampilkan navbar
   const hideNavbarRoutes = ["/Welcome", "/Login", "/Register"];
-
   const shouldHideNavbar = hideNavbarRoutes.includes(pathname);
 
   return (
-    <View style={styles.container}>
-      {/* Bagian halaman utama */}
-      <View
-        style={[styles.pageContainer, shouldHideNavbar && { paddingBottom: 0 }]}
-      >
-        <Stack screenOptions={{ headerShown: false }} />
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View
+          style={[
+            styles.pageContainer,
+            shouldHideNavbar && { marginBottom: 0 },
+          ]}
+        >
+          <Stack screenOptions={{ headerShown: false }} />
+        </View>
 
-      {/* Navbar hanya muncul jika bukan di halaman yang disembunyikan */}
-      {!shouldHideNavbar && <BottomNavbar />}
-    </View>
+        {!shouldHideNavbar && <BottomNavbar />}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
   container: {
     flex: 1,
   },
   pageContainer: {
     flex: 1,
-    paddingBottom: 70, // ruang untuk navbar
+    backgroundColor: "#fff",
   },
 });

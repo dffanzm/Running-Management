@@ -108,7 +108,7 @@ const Login = () => {
         Alert.alert(
           "Login Berhasil",
           `Selamat datang kembali, ${data.username}!`,
-          [{ text: "OK", onPress: () => router.replace("./index") }]
+          [{ text: "OK", onPress: () => router.replace("/Home") }]
         );
       }
     } catch (err) {

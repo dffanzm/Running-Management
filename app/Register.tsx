@@ -208,7 +208,6 @@ const Register = () => {
 
   // Handle Register
   const handleRegister = async () => {
-    // Validasi form
     const isValid = await validateForm();
     if (!isValid) {
       Alert.alert("Error", "Mohon lengkapi semua field dengan benar");
@@ -218,7 +217,6 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      // Cek username sudah ada atau belum
       const usernameExists = await checkUsernameExists(form.username);
       if (usernameExists) {
         setErrors({ ...errors, username: "Username sudah terdaftar" });
@@ -227,7 +225,6 @@ const Register = () => {
         return;
       }
 
-      // Cek email sudah ada atau belum
       const emailExists = await checkEmailExists(form.email);
       if (emailExists) {
         setErrors({ ...errors, email: "Email sudah terdaftar" });
@@ -236,28 +233,49 @@ const Register = () => {
         return;
       }
 
-      // Insert ke database
+      // Generate OTP
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpExpiry = new Date();
+      otpExpiry.setMinutes(otpExpiry.getMinutes() + 10);
+
+      // Insert user
       const { data, error } = await supabase.from("users").insert([
         {
           username: form.username,
           email: form.email,
-          password: form.password, // Dalam produksi, password harus di-hash!
+          password: form.password,
           gender: form.gender,
           role: form.role,
+          otp_code: otpCode,
+          otp_expiry: otpExpiry.toISOString(),
+          is_verified: false,
           created_at: new Date().toISOString(),
         },
       ]);
 
       if (error) {
+        if (error.message.includes("duplicate key value")) {
+          Alert.alert("Error", "Email atau username sudah terdaftar");
+        } else {
+          Alert.alert("Error", "Gagal mendaftarkan user");
+        }
         console.error("Error inserting user:", error);
-        Alert.alert("Error", "Gagal mendaftarkan user");
-      } else {
-        Alert.alert("Sukses", "Registrasi berhasil!", [
-          {
-            onPress: () => router.push("/Login"),
-          },
-        ]);
+        setIsLoading(false);
+        return;
       }
+
+      console.log(`OTP untuk ${form.email}: ${otpCode}`);
+
+      Alert.alert("Verifikasi Email", "Kode OTP telah dikirim ke email kamu!", [
+        {
+          text: "OK",
+          onPress: () =>
+            router.push({
+              pathname: "./CekEmail",
+              params: { email: form.email, username: form.username },
+            }),
+        },
+      ]);
     } catch (error) {
       console.error("Register error:", error);
       Alert.alert("Error", "Terjadi kesalahan saat registrasi");
