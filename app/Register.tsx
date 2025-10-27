@@ -1,3 +1,4 @@
+// app/Register.tsx
 import {
   Urbanist_400Regular,
   Urbanist_600SemiBold,
@@ -21,7 +22,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-import { supabase } from "../Database/supabaseClient"; // Import supabase
+import { supabase } from "../Database/supabaseClient";
 
 // Google Icon
 const GoogleIcon = () => (
@@ -44,6 +45,9 @@ const GoogleIcon = () => (
     />
   </Svg>
 );
+
+// ✅ IP Address yang benar dari WiFi
+const BACKEND_URL = "http://192.168.1.23:5000";
 
 const Register = () => {
   const [fontsLoaded] = useFonts({
@@ -179,7 +183,7 @@ const Register = () => {
   // Cek username sudah ada atau belum
   const checkUsernameExists = async (username: string) => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("users")
         .select("username")
         .eq("username", username)
@@ -194,7 +198,7 @@ const Register = () => {
   // Cek email sudah ada atau belum
   const checkEmailExists = async (email: string) => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("users")
         .select("email")
         .eq("email", email)
@@ -206,7 +210,7 @@ const Register = () => {
     }
   };
 
-  // Handle Register
+  // ✅ Handle Register - FIXED VERSION
   const handleRegister = async () => {
     const isValid = await validateForm();
     if (!isValid) {
@@ -217,6 +221,9 @@ const Register = () => {
     setIsLoading(true);
 
     try {
+      console.log("🚀 Starting registration process...");
+
+      // 1️⃣ Cek username sudah ada
       const usernameExists = await checkUsernameExists(form.username);
       if (usernameExists) {
         setErrors({ ...errors, username: "Username sudah terdaftar" });
@@ -225,6 +232,7 @@ const Register = () => {
         return;
       }
 
+      // 2️⃣ Cek email sudah ada
       const emailExists = await checkEmailExists(form.email);
       if (emailExists) {
         setErrors({ ...errors, email: "Email sudah terdaftar" });
@@ -233,53 +241,96 @@ const Register = () => {
         return;
       }
 
-      // Generate OTP
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpExpiry = new Date();
-      otpExpiry.setMinutes(otpExpiry.getMinutes() + 10);
-
-      // Insert user
-      const { data, error } = await supabase.from("users").insert([
-        {
-          username: form.username,
-          email: form.email,
-          password: form.password,
-          gender: form.gender,
-          role: form.role,
-          otp_code: otpCode,
-          otp_expiry: otpExpiry.toISOString(),
-          is_verified: false,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      // 3️⃣ Insert user TANPA OTP (biarkan backend yang handle)
+      const { data: userData, error } = await supabase
+        .from("users")
+        .insert([
+          {
+            username: form.username,
+            email: form.email,
+            password: form.password,
+            gender: form.gender,
+            role: form.role,
+            is_verified: false,
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
 
       if (error) {
-        if (error.message.includes("duplicate key value")) {
-          Alert.alert("Error", "Email atau username sudah terdaftar");
-        } else {
-          Alert.alert("Error", "Gagal mendaftarkan user");
-        }
-        console.error("Error inserting user:", error);
+        console.error("❌ Error inserting user:", error);
+        Alert.alert("Error", "Gagal mendaftarkan user");
         setIsLoading(false);
         return;
       }
 
-      console.log(`OTP untuk ${form.email}: ${otpCode}`);
+      console.log("✅ User created:", userData);
 
-      Alert.alert("Verifikasi Email", "Kode OTP telah dikirim ke email kamu!", [
-        {
-          text: "OK",
-          onPress: () =>
-            router.push({
-              pathname: "./CekEmail",
-              params: { email: form.email, username: form.username },
-            }),
-        },
-      ]);
+      // 4️⃣ Kirim OTP via backend (backend yang generate & simpan OTP)
+      console.log(`📧 Sending OTP request to: ${BACKEND_URL}/send-otp`);
+      console.log(`📧 Email: ${form.email}`);
+
+      const response = await fetch(`${BACKEND_URL}/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+
+      console.log("📡 Response status:", response.status);
+
+      if (!response.ok) {
+        console.error("❌ Backend response not OK:", response.status);
+        Alert.alert("Error", "Gagal menghubungi server. Coba lagi nanti.");
+        setIsLoading(false);
+        return;
+      }
+
+      const result = await response.json();
+      console.log("📦 Backend response:", result);
+
+      if (!result.success) {
+        console.error("❌ Backend gagal kirim OTP:", result.message);
+        Alert.alert("Error", result.message || "Gagal mengirim OTP");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log(`✅ OTP berhasil dikirim ke ${form.email}`);
+
+      // 5️⃣ Stop loading SEBELUM Alert
+      setIsLoading(false);
+
+      // 6️⃣ Tampilkan Alert & navigate
+      Alert.alert(
+        "Verifikasi Email",
+        "Kode OTP telah dikirim ke email kamu!",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              router.push({
+                pathname: "./CekEmail",
+                params: {
+                  email: form.email,
+                  username: form.username,
+                },
+              });
+            },
+          },
+        ],
+        { cancelable: false }
+      );
     } catch (error) {
-      console.error("Register error:", error);
-      Alert.alert("Error", "Terjadi kesalahan saat registrasi");
-    } finally {
+      console.error("❌ Register error:", error);
+      console.error("Error details:", {
+        name: error.name,
+        message: error.message,
+      });
+      Alert.alert(
+        "Error",
+        "Tidak dapat terhubung ke server. Pastikan backend sudah berjalan."
+      );
       setIsLoading(false);
     }
   };

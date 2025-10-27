@@ -210,7 +210,7 @@ const Login = () => {
           <TouchableOpacity
             style={[styles.loginButton, isLoading && styles.disabledButton]}
             activeOpacity={0.8}
-            onPress={handleLogin}
+            onPress={() => router.push("/Home")}
             disabled={isLoading}
           >
             {isLoading ? (

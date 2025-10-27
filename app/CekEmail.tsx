@@ -1,3 +1,4 @@
+// app/CekEmail.tsx
 import {
   Urbanist_400Regular,
   Urbanist_600SemiBold,
@@ -24,6 +25,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../Database/supabaseClient";
 
+// ✅ IP Address yang benar dari WiFi
+const BACKEND_URL = "http://192.168.1.23:5000";
+
 const CekEmail = () => {
   const params = useLocalSearchParams();
   const email = params.email as string;
@@ -37,7 +41,7 @@ const CekEmail = () => {
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
-  const [timer, setTimer] = useState(600); // 10 menit dalam detik
+  const [timer, setTimer] = useState(300); // 5 menit
   const [canResend, setCanResend] = useState(false);
 
   const inputRefs = useRef<Array<TextInput | null>>([]);
@@ -54,11 +58,9 @@ const CekEmail = () => {
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(interval);
   }, []);
 
-  // Format timer display
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -67,40 +69,31 @@ const CekEmail = () => {
       .padStart(2, "0")}`;
   };
 
-  // Handle OTP input
+  // OTP input handler
   const handleOtpChange = (value: string, index: number) => {
     if (value.length > 1) {
-      // Handle paste
       const pastedCode = value.slice(0, 6).split("");
       const newOtp = [...otp];
       pastedCode.forEach((digit, i) => {
         if (i < 6) newOtp[i] = digit;
       });
       setOtp(newOtp);
-
-      // Focus last input or next empty
       const lastIndex = Math.min(pastedCode.length - 1, 5);
       inputRefs.current[lastIndex]?.focus();
     } else {
       const newOtp = [...otp];
       newOtp[index] = value;
       setOtp(newOtp);
-
-      // Auto focus next input
-      if (value && index < 5) {
-        inputRefs.current[index + 1]?.focus();
-      }
+      if (value && index < 5) inputRefs.current[index + 1]?.focus();
     }
   };
 
-  // Handle backspace
   const handleKeyPress = (e: any, index: number) => {
     if (e.nativeEvent.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  // Animasi tombol
   const animateButton = () => {
     Animated.sequence([
       Animated.timing(scaleAnim, {
@@ -116,7 +109,7 @@ const CekEmail = () => {
     ]).start();
   };
 
-  // Verify OTP
+  // ✅ Verifikasi OTP (FIXED - Timezone aware)
   const handleVerifyOtp = async () => {
     const otpCode = otp.join("");
 
@@ -129,31 +122,61 @@ const CekEmail = () => {
     animateButton();
 
     try {
-      // Cek OTP di database
+      console.log("🔐 Verifying OTP:", otpCode);
+      console.log("📧 Email:", email);
+
+      // 1️⃣ Ambil data user dari database
       const { data, error } = await supabase
         .from("users")
         .select("*")
         .eq("email", email)
-        .eq("otp_code", otpCode)
         .single();
 
       if (error || !data) {
+        console.error("❌ User tidak ditemukan:", error);
+        Alert.alert("Error", "User tidak ditemukan");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("✅ User found:", data.username);
+      console.log("🔑 Stored OTP:", data.otp_code);
+
+      // 2️⃣ Cek apakah OTP cocok
+      if (data.otp_code !== otpCode) {
+        console.error("❌ OTP tidak cocok");
+        console.error("Expected:", data.otp_code);
+        console.error("Received:", otpCode);
         Alert.alert("Error", "Kode OTP tidak valid");
         setIsLoading(false);
         return;
       }
 
-      // Cek apakah OTP expired
-      const otpExpiry = new Date(data.otp_expiry);
-      const now = new Date();
+      console.log("✅ OTP match!");
 
-      if (now > otpExpiry) {
-        Alert.alert("Error", "Kode OTP sudah kadaluarsa");
+      // 3️⃣ Cek apakah OTP sudah kadaluarsa (UTC comparison)
+      const otpExpiryUTC = new Date(data.otp_expiry);
+      const nowUTC = new Date();
+
+      console.log("🕒 OTP Expiry (UTC):", otpExpiryUTC.toISOString());
+      console.log("🕒 Current Time (UTC):", nowUTC.toISOString());
+
+      const diffMs = otpExpiryUTC.getTime() - nowUTC.getTime();
+      const diffSeconds = Math.floor(diffMs / 1000);
+
+      console.log("⏱️  Selisih (ms):", diffMs);
+      console.log("⏱️  Selisih (seconds):", diffSeconds);
+      console.log(diffMs > 0 ? "✅ OTP masih valid" : "❌ OTP expired");
+
+      if (nowUTC > otpExpiryUTC) {
+        console.error("❌ OTP sudah kadaluarsa");
+        Alert.alert("Error", "Kode OTP sudah kadaluarsa. Silakan kirim ulang.");
         setIsLoading(false);
         return;
       }
 
-      // Update status verified
+      // 4️⃣ Update user menjadi verified
+      console.log("📝 Updating user as verified...");
       const { error: updateError } = await supabase
         .from("users")
         .update({
@@ -164,60 +187,96 @@ const CekEmail = () => {
         .eq("email", email);
 
       if (updateError) {
+        console.error("❌ Gagal update user:", updateError);
         Alert.alert("Error", "Gagal verifikasi email");
-      } else {
-        Alert.alert("Berhasil!", "Email berhasil diverifikasi", [
+        setIsLoading(false);
+        return;
+      }
+
+      // 5️⃣ Berhasil!
+      console.log("✅ Email berhasil diverifikasi!");
+      setIsLoading(false);
+
+      Alert.alert(
+        "Berhasil!",
+        "Email berhasil diverifikasi",
+        [
           {
             text: "OK",
-            onPress: () => router.push("/Login"),
+            onPress: () => router.replace("/Login"),
           },
-        ]);
-      }
+        ],
+        { cancelable: false }
+      );
     } catch (error) {
-      console.error("Verify error:", error);
+      console.error("❌ Verify error:", error);
+      const errorDetails =
+        error instanceof Error
+          ? { name: error.name, message: error.message }
+          : { name: "UnknownError", message: String(error) };
+      console.error("Error details:", errorDetails);
       Alert.alert("Error", "Terjadi kesalahan saat verifikasi");
-    } finally {
       setIsLoading(false);
     }
   };
 
-  // Resend OTP
+  // 🔁 Resend OTP via Backend (FIXED)
   const handleResendOtp = async () => {
     if (!canResend) return;
-
     setIsLoading(true);
 
     try {
-      // Generate new OTP
-      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpExpiry = new Date();
-      otpExpiry.setMinutes(otpExpiry.getMinutes() + 10);
+      console.log("🔄 Mengirim ulang OTP ke:", email);
+      console.log("📡 Request URL:", `${BACKEND_URL}/send-otp`);
 
-      // Update OTP di database
-      const { error } = await supabase
-        .from("users")
-        .update({
-          otp_code: newOtp,
-          otp_expiry: otpExpiry.toISOString(),
-        })
-        .eq("email", email);
+      const response = await fetch(`${BACKEND_URL}/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-      if (error) {
-        Alert.alert("Error", "Gagal mengirim ulang OTP");
-      } else {
-        // Reset timer
-        setTimer(600);
+      console.log("📡 Response status:", response.status);
+
+      if (!response.ok) {
+        console.error("❌ Backend response not OK:", response.status);
+        Alert.alert("Error", "Gagal menghubungi server");
+        setIsLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      console.log("📦 Backend response:", data);
+
+      if (data.success) {
+        console.log("✅ OTP baru berhasil dikirim");
+
+        // Reset timer dan OTP input
+        setTimer(300); // 5 menit
         setCanResend(false);
         setOtp(["", "", "", "", "", ""]);
 
-        // Untuk testing, tampilkan OTP di console
-        console.log(`OTP baru untuk ${email}: ${newOtp}`);
+        // Focus ke input pertama
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 100);
 
         Alert.alert("Berhasil", "Kode OTP baru telah dikirim ke email Anda");
+      } else {
+        console.error("❌ Backend error:", data.message);
+        Alert.alert("Error", data.message || "Gagal kirim ulang OTP");
       }
-    } catch (error) {
-      console.error("Resend error:", error);
-      Alert.alert("Error", "Gagal mengirim ulang OTP");
+    } catch (err) {
+      console.error("❌ Resend error:", err);
+      // Safely extract error details from an unknown value
+      const errorDetails =
+        err instanceof Error
+          ? { name: err.name, message: err.message }
+          : { name: "UnknownError", message: String(err) };
+      console.error("Error details:", errorDetails);
+      Alert.alert(
+        "Error",
+        "Tidak dapat terhubung ke server. Pastikan backend sudah berjalan."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -239,7 +298,6 @@ const CekEmail = () => {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.content}>
-            {/* Header */}
             <View style={styles.header}>
               <TouchableOpacity
                 style={styles.backButton}
@@ -249,14 +307,12 @@ const CekEmail = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Icon Email */}
             <View style={styles.iconContainer}>
               <View style={styles.emailIcon}>
                 <Ionicons name="mail-outline" size={48} color="#112952" />
               </View>
             </View>
 
-            {/* Title */}
             <Text style={styles.title}>Verifikasi Email</Text>
             <Text style={styles.subtitle}>
               Kami telah mengirim kode verifikasi ke
@@ -268,26 +324,26 @@ const CekEmail = () => {
               {otp.map((digit, index) => (
                 <TextInput
                   key={index}
-                  ref={(ref) => (inputRefs.current[index] = ref)}
+                  ref={(ref) => {
+                    inputRefs.current[index] = ref;
+                  }}
                   style={[styles.otpInput, digit ? styles.otpInputFilled : {}]}
                   value={digit}
                   onChangeText={(value) => handleOtpChange(value, index)}
                   onKeyPress={(e) => handleKeyPress(e, index)}
                   keyboardType="numeric"
-                  maxLength={6}
+                  maxLength={1}
                   selectTextOnFocus
                 />
               ))}
             </View>
 
-            {/* Timer */}
             <View style={styles.timerContainer}>
               <Text style={styles.timerText}>
                 Kode akan kadaluarsa dalam {formatTime(timer)}
               </Text>
             </View>
 
-            {/* Verify Button */}
             <Animated.View
               style={[
                 styles.buttonContainer,
@@ -311,7 +367,6 @@ const CekEmail = () => {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* Resend Code */}
             <View style={styles.resendContainer}>
               <Text style={styles.resendText}>Tidak menerima kode?</Text>
               <TouchableOpacity
@@ -321,7 +376,7 @@ const CekEmail = () => {
                 <Text
                   style={[
                     styles.resendLink,
-                    !canResend && styles.resendLinkDisabled,
+                    (!canResend || isLoading) && styles.resendLinkDisabled,
                   ]}
                 >
                   {" "}
@@ -340,23 +395,10 @@ export default CekEmail;
 
 // --- Styles ---
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  header: {
-    marginTop: 20,
-    marginBottom: 20,
-  },
+  container: { flex: 1, backgroundColor: "#fff" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  content: { flex: 1, paddingHorizontal: 24 },
+  header: { marginTop: 20, marginBottom: 20 },
   backButton: {
     width: 44,
     height: 44,
@@ -367,10 +409,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
   },
-  iconContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
+  iconContainer: { alignItems: "center", marginBottom: 24 },
   emailIcon: {
     width: 96,
     height: 96,
@@ -421,18 +460,13 @@ const styles = StyleSheet.create({
     borderColor: "#112952",
     backgroundColor: "#fff",
   },
-  timerContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
+  timerContainer: { alignItems: "center", marginBottom: 24 },
   timerText: {
     fontSize: 14,
     fontFamily: "Urbanist-Regular",
     color: "#6B7280",
   },
-  buttonContainer: {
-    marginBottom: 24,
-  },
+  buttonContainer: { marginBottom: 24 },
   verifyButton: {
     backgroundColor: "#112952",
     borderRadius: 14,
@@ -444,9 +478,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 7,
   },
-  disabledButton: {
-    opacity: 0.7,
-  },
+  disabledButton: { opacity: 0.7 },
   verifyButtonText: {
     color: "#fff",
     fontFamily: "Urbanist-SemiBold",
@@ -468,7 +500,5 @@ const styles = StyleSheet.create({
     fontFamily: "Urbanist-SemiBold",
     color: "#1D4ED8",
   },
-  resendLinkDisabled: {
-    color: "#9CA3AF",
-  },
+  resendLinkDisabled: { color: "#9CA3AF" },
 });

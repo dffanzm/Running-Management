@@ -6,7 +6,7 @@ import BottomNavbar from "./BottomNavbar";
 
 export default function RootLayout() {
   const pathname = usePathname();
-  const hideNavbarRoutes = ["/Welcome", "/Login", "/Register"];
+  const hideNavbarRoutes = ["/Welcome", "/Login", "/Register", "/CekEmail"];
   const shouldHideNavbar = hideNavbarRoutes.includes(pathname);
 
   return (
