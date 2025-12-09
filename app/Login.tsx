@@ -9,17 +9,18 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  Alert, // Tetap diimport untuk jaga-jaga, tapi kita pakai alert biasa untuk web
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { supabase } from "../Database/supabaseClient";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ================= Google Icon Component =================
 const GoogleIcon = () => (
@@ -85,41 +86,54 @@ const Login = () => {
     return isValid;
   };
 
-  // ---------- Handle Login ----------
+  // ---------- Handle Login (Versi FIX & Stabil) ----------
   const handleLogin = async () => {
+    // 1. Cek Validasi Form
     if (!validateForm()) return;
 
     setIsLoading(true);
 
+    // 2. Bersihkan Input (Hapus Spasi & Kecilkan Huruf Email)
+    const cleanEmail = form.email.trim().toLowerCase();
+    const cleanPassword = form.password.trim();
+
+    console.log("Mencoba login:", cleanEmail);
+
     try {
+      // 3. Cek ke Database Supabase
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .eq("email", form.email)
-        .eq("password", form.password)
-        .single();
+        .eq("email", cleanEmail)
+        .eq("password", cleanPassword)
+        .maybeSingle();
 
       if (error || !data) {
-        Alert.alert(
-          "Login Gagal",
-          "Email atau password yang Anda masukkan salah."
-        );
+        // Gagal Login: Gunakan 'alert' biasa (kecil hurufnya) agar muncul di Web Browser & HP
+        alert("Login Gagal! Email atau Password salah.");
       } else {
-        Alert.alert(
-          "Login Berhasil",
-          `Selamat datang kembali, ${data.username}!`,
-          [{ text: "OK", onPress: () => router.replace("/Home") }]
-        );
+        // --- LOGIN SUKSES ---
+        console.log("Login sukses, menyimpan sesi...");
+        
+        // 4. Simpan Data User ke HP
+        try {
+          await AsyncStorage.setItem('userSession', JSON.stringify(data));
+        } catch (e) {
+          console.error("Gagal simpan session", e);
+        }
+
+        // 5. LANGSUNG PINDAH HALAMAN (Tanpa Pop-up 'OK' yang bikin macet)
+        router.replace("/Home");
       }
     } catch (err) {
-      console.error("Login error:", err);
-      Alert.alert("Error", "Terjadi kesalahan saat mencoba login.");
+      console.error("System Error:", err);
+      alert("Terjadi kesalahan sistem.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ---------- Loading ----------
+  // ---------- Loading View ----------
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
@@ -128,7 +142,7 @@ const Login = () => {
     );
   }
 
-  // ================= Render =================
+  // ================= Render UI =================
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -146,9 +160,10 @@ const Login = () => {
           <Text style={styles.title}>Welcome!</Text>
         </View>
 
-        {/* Form */}
+        {/* Form Area */}
         <View style={styles.form}>
-          {/* Email */}
+          
+          {/* Input Email */}
           <View>
             <TextInput
               placeholder="Enter your email"
@@ -162,12 +177,12 @@ const Login = () => {
                 if (errors.email) setErrors({ ...errors, email: "" });
               }}
             />
-            {errors.email && (
+            {errors.email ? (
               <Text style={styles.errorText}>{errors.email}</Text>
-            )}
+            ) : null}
           </View>
 
-          {/* Password */}
+          {/* Input Password */}
           <View>
             <View
               style={[
@@ -197,11 +212,12 @@ const Login = () => {
                 />
               </TouchableOpacity>
             </View>
-            {errors.password && (
+            {errors.password ? (
               <Text style={styles.errorText}>{errors.password}</Text>
-            )}
+            ) : null}
           </View>
 
+          {/* Forgot Password Link */}
           <TouchableOpacity onPress={() => router.push("/ForgotPassword")}>
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
@@ -210,7 +226,7 @@ const Login = () => {
           <TouchableOpacity
             style={[styles.loginButton, isLoading && styles.disabledButton]}
             activeOpacity={0.8}
-            onPress={() => router.push("/Home")}
+            onPress={handleLogin}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -220,14 +236,14 @@ const Login = () => {
             )}
           </TouchableOpacity>
 
-          {/* Divider */}
+          {/* Divider 'Or Login With' */}
           <View style={styles.orContainer}>
             <View style={styles.line} />
             <Text style={styles.orText}>Or Login with</Text>
             <View style={styles.line} />
           </View>
 
-          {/* Social Login */}
+          {/* Social Media Buttons */}
           <View style={styles.socialContainer}>
             <TouchableOpacity style={styles.socialBox}>
               <GoogleIcon />
@@ -237,13 +253,14 @@ const Login = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Register */}
+          {/* Register Link */}
           <View style={styles.registerRow}>
             <Text style={styles.registerText}>Don't have an account?</Text>
             <TouchableOpacity onPress={() => router.push("/Register")}>
               <Text style={styles.registerLink}>Register now</Text>
             </TouchableOpacity>
           </View>
+
         </View>
       </ScrollView>
     </SafeAreaView>
