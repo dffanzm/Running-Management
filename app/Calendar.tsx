@@ -24,7 +24,6 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Gunakan useFocusEffect agar data di-refresh saat tab dibuka
   useFocusEffect(
     React.useCallback(() => {
       loadData();
@@ -39,7 +38,6 @@ export default function CalendarScreen() {
         const userData = JSON.parse(jsonValue);
         setUser(userData);
         
-        // LOGIKA BARU: Asalkan bukan Coach, kita anggap Athlete dan ambil datanya
         if (userData.role !== "Coach") {
           await fetchMyPlans(userData.id);
         }
@@ -52,27 +50,31 @@ export default function CalendarScreen() {
   };
 
   const fetchMyPlans = async (athleteId: number) => {
+    // --- PERBAIKAN 1: JOIN KE TABEL LOGS UNTUK AMBIL FEEDBACK ---
     const { data } = await supabase
       .from("training_plans")
-      .select("*")
+      .select(`
+        *,
+        training_logs (*) 
+      `)
       .eq("athlete_id", athleteId);
 
     const marked: any = {};
     data?.forEach((plan) => {
-        let color = 'orange'; // Scheduled
-        if(plan.status === 'completed') color = '#22c55e'; // Green
-        if(plan.status === 'missed') color = '#ef4444'; // Red
+        let color = 'orange'; 
+        if(plan.status === 'completed') color = '#22c55e'; 
+        if(plan.status === 'missed') color = '#ef4444'; 
 
         marked[plan.date] = { 
           marked: true, 
           dotColor: color, 
-          data: plan 
+          data: plan,
+          log: plan.training_logs?.[0] // Simpan data log & feedback disini
         };
     });
     setPlans(marked);
   };
 
-  // --- KOMPONEN KARTU DETAIL ---
   const renderDetail = () => {
     if (!selectedDate) {
       return (
@@ -107,10 +109,8 @@ export default function CalendarScreen() {
           </View>
         </View>
         
-        {/* Deskripsi */}
         <Text style={styles.planDesc}>{item.data.description || "Tidak ada instruksi khusus."}</Text>
         
-        {/* Metrics (Jarak) */}
         <View style={styles.planMetrics}>
            <View style={styles.metricItem}>
               <Ionicons name="speedometer-outline" size={20} color={PRIMARY_COLOR} />
@@ -122,8 +122,30 @@ export default function CalendarScreen() {
            </View>
         </View>
 
-        {/* Tombol Input (Jika Belum Selesai) */}
-        {!isCompleted && (
+        {/* --- PERBAIKAN 2: TAMPILKAN HASIL & FEEDBACK --- */}
+        {isCompleted && item.log ? (
+          <View style={styles.resultBox}>
+             <Text style={styles.resultTitle}>Laporan Kamu:</Text>
+             <View style={{flexDirection:'row', gap:15, marginBottom:5}}>
+                <Text style={styles.resultText}>✅ {item.log.actual_distance} km</Text>
+                <Text style={styles.resultText}>⏱ {item.log.actual_duration} menit</Text>
+             </View>
+             <Text style={[styles.resultText, {fontStyle:'italic', color:'gray'}]}>"{item.log.notes}"</Text>
+
+             <View style={styles.feedbackDivider} />
+             
+             <Text style={styles.resultTitle}>Feedback Coach:</Text>
+             {item.log.coach_feedback ? (
+               <View style={styles.feedbackContainer}>
+                  <FontAwesome5 name="comment-dots" size={16} color={PRIMARY_COLOR} />
+                  <Text style={styles.feedbackText}>{item.log.coach_feedback}</Text>
+               </View>
+             ) : (
+               <Text style={{color:'gray', fontSize:12, fontStyle:'italic'}}>Belum ada feedback.</Text>
+             )}
+          </View>
+        ) : (
+          // Jika belum selesai, tampilkan tombol Input
           <TouchableOpacity 
             style={styles.actionButton}
             onPress={() => router.push({
@@ -140,8 +162,7 @@ export default function CalendarScreen() {
 
   if (loading) return <ActivityIndicator size="large" color={PRIMARY_COLOR} style={{marginTop:50}} />;
 
-  // --- LOGIKA TAMPILAN UTAMA (FIXED) ---
-  // Jika User ADALAH Coach -> Tampilkan Pesan Coach
+  // View untuk Coach (Hanya Info)
   if (user?.role === "Coach") {
     return (
       <SafeAreaView style={styles.container}>
@@ -161,7 +182,7 @@ export default function CalendarScreen() {
     );
   }
 
-  // Jika BUKAN Coach (Berarti Athlete), Tampilkan Kalender
+  // View untuk Athlete (Kalender)
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -215,6 +236,14 @@ const styles = StyleSheet.create({
   
   actionButton: { backgroundColor: BUTTON_COLOR, padding: 15, borderRadius: 12, alignItems: "center" },
   actionButtonText: { color: "white", fontWeight: "bold" },
+
+  // Styles untuk Result & Feedback
+  resultBox: { backgroundColor: '#F9FAFB', padding: 15, borderRadius: 12 },
+  resultTitle: { fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 5 },
+  resultText: { fontSize: 14, color: '#333' },
+  feedbackDivider: { height: 1, backgroundColor: '#eee', marginVertical: 10 },
+  feedbackContainer: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#E0E7FF', padding: 10, borderRadius: 8 },
+  feedbackText: { fontWeight: 'bold', color: PRIMARY_COLOR },
 
   emptyContainer: { alignItems: 'center', marginTop: 20, padding: 20, backgroundColor: '#F9FAFB', borderRadius: 12 },
   hintText: { textAlign: "center", color: "gray", marginTop: 10, fontSize: 14 },

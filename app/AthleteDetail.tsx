@@ -27,7 +27,7 @@ export default function AthleteDetailScreen() {
   const [selectedDate, setSelectedDate] = useState("");
   const [plans, setPlans] = useState<any>({});
   const [loading, setLoading] = useState(true);
-  const [target, setTarget] = useState<any>(null); // <--- State Target
+  const [target, setTarget] = useState<any>(null);
   
   const [modalVisible, setModalVisible] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -73,7 +73,7 @@ export default function AthleteDetailScreen() {
     }
   };
 
-  // --- 2. AMBIL TARGET ATLET (BARU) ---
+  // --- 2. AMBIL TARGET ---
   const fetchTarget = async () => {
     try {
       const { data } = await supabase
@@ -90,67 +90,43 @@ export default function AthleteDetailScreen() {
     }
   };
 
-  // --- 3. APPROVE / REJECT TARGET ---
+  // --- 3. APPROVE TARGET ---
   const handleTargetAction = async (status: 'accepted' | 'rejected') => {
     if (!target) return;
     try {
-      const { error } = await supabase
-        .from("training_targets")
-        .update({ status: status })
-        .eq("id", target.id);
-
+      const { error } = await supabase.from("training_targets").update({ status: status }).eq("id", target.id);
       if (error) throw error;
-
       Alert.alert("Sukses", status === 'accepted' ? "Target disetujui!" : "Target ditolak.");
-      fetchTarget(); // Refresh tampilan
+      fetchTarget();
     } catch (err) {
-      Alert.alert("Error", "Gagal mengupdate status target.");
+      Alert.alert("Error", "Gagal update target.");
     }
   };
 
   // --- 4. TAMBAH PROGRAM ---
   const handleAddPlan = async () => {
-    if (!newTitle || !targetDist) {
-      Alert.alert("Error", "Isi judul dan jarak.");
-      return;
-    }
+    if (!newTitle || !targetDist) { Alert.alert("Error", "Isi judul & jarak."); return; }
     try {
       const jsonValue = await AsyncStorage.getItem("userSession");
       const coachData = JSON.parse(jsonValue || "{}");
-
       const { error } = await supabase.from("training_plans").insert([{
-          coach_id: coachData.id,
-          athlete_id: athleteId,
-          date: selectedDate,
-          title: newTitle,
-          description: newDesc,
-          target_distance: parseFloat(targetDist),
-          status: "scheduled"
+          coach_id: coachData.id, athlete_id: athleteId, date: selectedDate,
+          title: newTitle, description: newDesc, target_distance: parseFloat(targetDist), status: "scheduled"
       }]);
-
       if (error) throw error;
       Alert.alert("Sukses", "Program dibuat!");
-      setModalVisible(false);
-      setNewTitle(""); setNewDesc(""); setTargetDist("");
+      setModalVisible(false); setNewTitle(""); setNewDesc(""); setTargetDist("");
       fetchTrainingPlans(); 
-    } catch (err) {
-      Alert.alert("Gagal", "Error database.");
-    }
+    } catch (err) { Alert.alert("Gagal", "Error database."); }
   };
 
-  // --- 5. BERI FEEDBACK ---
+  // --- 5. BERI FEEDBACK (YANG HILANG) ---
   const giveFeedback = async (logId: string, feedback: string) => {
     try {
-      const { error } = await supabase
-        .from("training_logs")
-        .update({ coach_feedback: feedback })
-        .eq("id", logId); 
-
+      const { error } = await supabase.from("training_logs").update({ coach_feedback: feedback }).eq("id", logId);
       if (error) throw error;
       fetchTrainingPlans(); 
-    } catch (err) {
-      Alert.alert("Error", "Gagal menyimpan feedback.");
-    }
+    } catch (err) { Alert.alert("Error", "Gagal simpan feedback."); }
   };
 
   const renderSelectedDateInfo = () => {
@@ -162,7 +138,6 @@ export default function AthleteDetailScreen() {
         <Text style={styles.dateTitle}>📅 {selectedDate}</Text>
         {item ? (
           <View>
-            {/* PLAN CARD */}
             <View style={styles.planCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardLabel}>PROGRAM</Text>
@@ -173,7 +148,7 @@ export default function AthleteDetailScreen() {
               <Text style={styles.planTarget}>🎯 Target: {item.data.target_distance} km</Text>
             </View>
 
-            {/* LOG CARD */}
+            {/* --- BAGIAN HASIL LATIHAN & FEEDBACK (YANG HILANG TADI) --- */}
             {item.data.status === 'completed' && item.log && (
               <View style={styles.logCard}>
                 <Text style={styles.cardLabel}>HASIL LATIHAN</Text>
@@ -185,7 +160,7 @@ export default function AthleteDetailScreen() {
                 <Text style={styles.noteText}>"{item.log.notes}"</Text>
                 <Text style={styles.noteText}>Rasanya: {item.log.feeling}</Text>
 
-                {/* FEEDBACK */}
+                {/* AREA FEEDBACK COACH */}
                 <View style={styles.feedbackSection}>
                   <Text style={styles.cardLabel}>FEEDBACK</Text>
                   {item.log.coach_feedback ? (
@@ -203,6 +178,7 @@ export default function AthleteDetailScreen() {
                 </View>
               </View>
             )}
+            {/* --------------------------------------------------------- */}
           </View>
         ) : (
           <View style={{alignItems: 'center'}}>
@@ -232,8 +208,6 @@ export default function AthleteDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{paddingBottom: 40}}>
-        
-        {/* --- SECTION TARGET ATLET (BARU) --- */}
         {target && (
           <View style={styles.targetSection}>
             <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}>
@@ -243,21 +217,14 @@ export default function AthleteDetailScreen() {
                </View>
             </View>
             <Text style={styles.targetDetail}>{target.target_value} (Deadline: {target.deadline})</Text>
-            
-            {/* Tombol ACC hanya muncul jika status PENDING */}
             {target.status === 'pending' && (
               <View style={styles.actionRow}>
-                 <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#ef4444'}]} onPress={() => handleTargetAction('rejected')}>
-                    <Text style={styles.actionText}>Tolak</Text>
-                 </TouchableOpacity>
-                 <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#22c55e'}]} onPress={() => handleTargetAction('accepted')}>
-                    <Text style={styles.actionText}>Terima Target</Text>
-                 </TouchableOpacity>
+                 <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#ef4444'}]} onPress={() => handleTargetAction('rejected')}><Text style={styles.actionText}>Tolak</Text></TouchableOpacity>
+                 <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#22c55e'}]} onPress={() => handleTargetAction('accepted')}><Text style={styles.actionText}>Terima</Text></TouchableOpacity>
               </View>
             )}
           </View>
         )}
-        {/* ----------------------------------- */}
 
         <Calendar
           onDayPress={(day: any) => setSelectedDate(day.dateString)}
@@ -265,16 +232,11 @@ export default function AthleteDetailScreen() {
             ...plans,
             [selectedDate]: { selected: true, selectedColor: ACCENT_COLOR, ...plans[selectedDate] }
           }}
-          theme={{
-            selectedDayBackgroundColor: ACCENT_COLOR,
-            todayTextColor: ACCENT_COLOR,
-            arrowColor: PRIMARY_COLOR,
-          }}
+          theme={{ selectedDayBackgroundColor: ACCENT_COLOR, todayTextColor: ACCENT_COLOR, arrowColor: PRIMARY_COLOR }}
         />
         {renderSelectedDateInfo()}
       </ScrollView>
 
-      {/* Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -298,8 +260,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, backgroundColor: PRIMARY_COLOR },
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "white" },
   headerSubtitle: { fontSize: 12, color: "#cbd5e1" },
-  
-  // Target Styles
   targetSection: { margin: 20, padding: 15, backgroundColor: '#F0F9FF', borderRadius: 12, borderWidth: 1, borderColor: '#BAE6FD' },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: PRIMARY_COLOR },
   targetDetail: { color: '#555', marginTop: 5, marginBottom: 10 },
@@ -307,12 +267,10 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
   actionBtn: { flex: 1, padding: 10, borderRadius: 8, alignItems: 'center' },
   actionText: { color: 'white', fontWeight: 'bold' },
-
   detailBox: { padding: 20, paddingBottom: 50 },
   hintText: { textAlign: "center", color: "gray", marginTop: 20 },
   dateTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15, color: PRIMARY_COLOR },
   noPlanText: { fontStyle: "italic", color: "gray", marginBottom: 15 },
-
   planCard: { backgroundColor: "white", padding: 15, borderRadius: 12, borderWidth: 1, borderColor: "#eee", marginBottom: 15, elevation: 2 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
   cardLabel: { fontSize: 10, fontWeight: 'bold', color: 'gray', letterSpacing: 1 },
@@ -320,23 +278,19 @@ const styles = StyleSheet.create({
   planTitle: { fontSize: 18, fontWeight: "bold", color: PRIMARY_COLOR },
   planDesc: { color: "#555", fontSize: 14, marginVertical: 5 },
   planTarget: { color: ACCENT_COLOR, fontWeight: "bold", marginTop: 5 },
-
   logCard: { backgroundColor: "#F0F9FF", padding: 15, borderRadius: 12, borderWidth: 1, borderColor: "#BAE6FD" },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 10, backgroundColor: 'white', padding: 10, borderRadius: 8 },
   statItem: { alignItems: 'center' },
   statValue: { fontWeight: 'bold', marginTop: 3 },
   noteText: { fontStyle: 'italic', color: '#333', marginTop: 5 },
-
   feedbackSection: { marginTop: 15, borderTopWidth: 1, borderTopColor: '#ddd', paddingTop: 10 },
   feedbackButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   fbBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20 },
   fbBtnText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
   feedbackGiven: { flexDirection: 'row', alignItems: 'center', backgroundColor: PRIMARY_COLOR, padding: 10, borderRadius: 8, marginTop: 5, gap: 8 },
   feedbackText: { color: 'white', fontWeight: 'bold' },
-
   addButton: { backgroundColor: PRIMARY_COLOR, padding: 15, borderRadius: 10, width: '100%', alignItems: "center" },
   addButtonText: { color: "white", fontWeight: "bold" },
-
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 },
   modalContent: { backgroundColor: "white", borderRadius: 15, padding: 20 },
   modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
