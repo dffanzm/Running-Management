@@ -22,7 +22,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../Database/supabaseClient";
 
-// --- WARNA TEMA ---
 const PRIMARY_COLOR = "#1C315E";
 const SECONDARY_COLOR = "#2D4B8E";
 const BUTTON_COLOR = "#112952";
@@ -38,12 +37,10 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // Data Coach
   const [myClub, setMyClub] = useState<any>(null); 
-  
-  // Data Athlete
   const [myMembership, setMyMembership] = useState<any>(null); 
-  const [todayProgram, setTodayProgram] = useState<any>(null); // <--- State Baru: Program Hari Ini
+  const [todayProgram, setTodayProgram] = useState<any>(null); 
+  const [myTarget, setMyTarget] = useState<any>(null); // <--- VARIABLE BARU: TARGET
 
   // --- 1. LOGIKA UTAMA ---
   const fetchData = async () => {
@@ -80,7 +77,7 @@ export default function HomeScreen() {
   };
 
   const fetchAthleteData = async (userId: number) => {
-    // 1. Ambil Data Klub
+    // 1. Data Klub
     const { data: memberData } = await supabase
       .from("club_members")
       .select("*, clubs(*)")
@@ -88,17 +85,25 @@ export default function HomeScreen() {
       .maybeSingle();
     setMyMembership(memberData);
 
-    // 2. Ambil Program Latihan HARI INI
-    const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-    
+    // 2. Program Hari Ini
+    const today = new Date().toISOString().split('T')[0];
     const { data: planData } = await supabase
       .from("training_plans")
       .select("*")
       .eq("athlete_id", userId)
-      .eq("date", today) // Cari yang tanggalnya hari ini
+      .eq("date", today) 
       .maybeSingle();
-      
     setTodayProgram(planData);
+
+    // 3. TARGET LATIHAN TERBARU (Sesuai Request)
+    const { data: targetData } = await supabase
+      .from("training_targets")
+      .select("*")
+      .eq("athlete_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setMyTarget(targetData);
   };
 
   useFocusEffect(
@@ -132,8 +137,12 @@ export default function HomeScreen() {
           {user?.role === "Coach" ? (
             <CoachDashboard club={myClub} />
           ) : (
-            // Kirim data program ke tampilan Athlete
-            <AthleteDashboard membership={myMembership} todayProgram={todayProgram} />
+            // Kirim data target ke tampilan Athlete
+            <AthleteDashboard 
+              membership={myMembership} 
+              todayProgram={todayProgram} 
+              target={myTarget} 
+            />
           )}
         </View>
       </ScrollView>
@@ -141,9 +150,7 @@ export default function HomeScreen() {
   );
 }
 
-// ==========================================================
-// KOMPONEN UI
-// ==========================================================
+// --- KOMPONEN UI ---
 
 const HeaderSection = ({ user }: any) => {
   const { height } = useWindowDimensions();
@@ -164,7 +171,6 @@ const HeaderSection = ({ user }: any) => {
   );
 };
 
-// --- DASHBOARD COACH ---
 const CoachDashboard = ({ club }: { club: any }) => {
   if (!club) {
     return (
@@ -200,14 +206,14 @@ const CoachDashboard = ({ club }: { club: any }) => {
             onPress={() => router.push({ pathname: "/AthleteList", params: { clubId: club.id } })} 
           />
           <MenuButton title="Program" icon="calendar-alt" color="#27ae60" onPress={() => Alert.alert("Coming Soon", "Fitur Kalender")} />
-          <MenuButton title="Statistik" icon="chart-bar" color="#8e44ad" onPress={() => Alert.alert("Coming Soon", "Fitur Statistik")} />
+          <MenuButton title="Statistik" icon="chart-bar" color="#8e44ad" onPress={() => router.push({ pathname: "/AthleteList", params: { clubId: club.id } })} />
        </View>
     </View>
   );
 };
 
-// --- DASHBOARD ATHLETE (UPDATED) ---
-const AthleteDashboard = ({ membership, todayProgram }: { membership: any, todayProgram: any }) => {
+// --- DASHBOARD ATHLETE (DENGAN TARGET DI ATAS) ---
+const AthleteDashboard = ({ membership, todayProgram, target }: { membership: any, todayProgram: any, target: any }) => {
   if (!membership) {
     return (
       <View style={styles.middleSection}>
@@ -222,7 +228,34 @@ const AthleteDashboard = ({ membership, todayProgram }: { membership: any, today
 
   return (
     <View style={styles.dashboardSection}>
-       <View style={[styles.clubCard, { backgroundColor: SECONDARY_COLOR }]}>
+       
+       {/* 1. SECTION TARGET LATIHAN (POSISI PALING ATAS) */}
+       <Text style={styles.sectionTitle}>Target Saya</Text>
+       {target ? (
+         <View style={styles.targetCard}>
+            <View style={{flex: 1}}>
+              <Text style={styles.targetTitle}>{target.title}</Text>
+              <Text style={styles.targetValue}>{target.target_value}</Text>
+              <Text style={styles.targetDate}>Deadline: {target.deadline}</Text>
+            </View>
+            <View style={{alignItems:'flex-end'}}>
+               <View style={[styles.statusBadge, {
+                 backgroundColor: target.status === 'accepted' ? '#22c55e' : target.status === 'pending' ? '#e67e22' : '#8e44ad'
+               }]}>
+                 <Text style={styles.statusText}>{target.status.toUpperCase()}</Text>
+               </View>
+               <Ionicons name="flag" size={30} color={PRIMARY_COLOR} style={{marginTop: 10}} />
+            </View>
+         </View>
+       ) : (
+         <TouchableOpacity style={styles.addTargetBox} onPress={() => router.push("/AddTarget")}>
+            <Ionicons name="add-circle" size={30} color="#3498db" />
+            <Text style={{color: "#3498db", fontWeight: 'bold', marginTop: 5}}>Buat Target Baru</Text>
+         </TouchableOpacity>
+       )}
+
+       {/* 2. SECTION INFO KLUB */}
+       <View style={[styles.clubCard, { backgroundColor: SECONDARY_COLOR, marginTop: 20 }]}>
           <View>
             <Text style={styles.clubLabel}>Member of</Text>
             <Text style={styles.clubName}>{membership.clubs?.club_name}</Text>
@@ -231,9 +264,19 @@ const AthleteDashboard = ({ membership, todayProgram }: { membership: any, today
           <FontAwesome5 name="running" size={32} color="white" opacity={0.8} />
        </View>
 
-       <Text style={styles.sectionTitle}>Program Hari Ini</Text>
-       
-       {/* LOGIKA TAMPILAN PROGRAM */}
+       {/* 3. MENU NAVIGASI ATHLETE */}
+       <View style={{flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10}}>
+          <TouchableOpacity 
+            style={{flex:1, backgroundColor: '#8e44ad', padding: 15, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}
+            onPress={() => router.push("/Statistics")}
+          >
+             <FontAwesome5 name="chart-bar" size={18} color="white" style={{marginRight:10}} />
+             <Text style={{color:'white', fontWeight:'bold'}}>Statistik</Text>
+          </TouchableOpacity>
+       </View>
+
+       {/* 4. SECTION PROGRAM HARI INI */}
+       <Text style={[styles.sectionTitle, {marginTop: 10}]}>Program Hari Ini</Text>
        {todayProgram ? (
          <View style={styles.activePlanCard}>
             <View style={styles.planHeader}>
@@ -246,28 +289,17 @@ const AthleteDashboard = ({ membership, todayProgram }: { membership: any, today
                 </Text>
               </View>
             </View>
-            
             <Text style={styles.planDesc}>{todayProgram.description || "Tidak ada instruksi khusus."}</Text>
-            
             <View style={styles.planMetrics}>
                <View style={styles.metricItem}>
                   <Ionicons name="speedometer-outline" size={18} color={PRIMARY_COLOR} />
                   <Text style={styles.metricText}>{todayProgram.target_distance} KM</Text>
                </View>
-               <View style={styles.metricItem}>
-                  <Ionicons name="time-outline" size={18} color={PRIMARY_COLOR} />
-                  <Text style={styles.metricText}>Target Waktu: Bebas</Text>
-               </View>
             </View>
-
-            {/* Tombol Input Hasil (Hanya jika belum selesai) */}
             {todayProgram.status !== 'completed' && (
               <TouchableOpacity 
                 style={styles.actionButton}
-                onPress={() => router.push({
-                   pathname: "/InputLog", // <--- Kita akan buat file ini setelah ini
-                   params: { planId: todayProgram.id, planTitle: todayProgram.title }
-                })}
+                onPress={() => router.push({ pathname: "/InputLog", params: { planId: todayProgram.id, planTitle: todayProgram.title } })}
               >
                 <Text style={styles.actionButtonText}>Input Hasil Latihan</Text>
               </TouchableOpacity>
@@ -275,7 +307,7 @@ const AthleteDashboard = ({ membership, todayProgram }: { membership: any, today
          </View>
        ) : (
          <View style={styles.programCard}>
-            <Text style={styles.emptyDesc}>Tidak ada jadwal latihan hari ini. Istirahatlah!</Text>
+            <Text style={styles.emptyDesc}>Tidak ada jadwal latihan untuk HARI INI.</Text>
          </View>
        )}
     </View>
@@ -289,12 +321,10 @@ const MenuButton = ({ title, icon, color, onPress }: any) => (
   </TouchableOpacity>
 );
 
-// --- STYLE ---
 const styles = StyleSheet.create({
   appContainer: { flex: 1, backgroundColor: "white" },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   
-  // Header
   topSectionContainer: { width: "100%", overflow: "hidden", marginBottom: 20 },
   imageBackground: { flex: 1, width: "100%", height: "100%", justifyContent: "flex-end" },
   overlayContainer: { padding: 25, paddingBottom: 40 },
@@ -303,7 +333,6 @@ const styles = StyleSheet.create({
   roleBadge: { backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginTop: 5 },
   roleText: { color: "white", fontFamily: "Urbanist-Bold", fontSize: 12, textTransform: "uppercase" },
 
-  // Content
   contentContainer: { paddingHorizontal: 20, paddingBottom: 100 },
   middleSection: { alignItems: "center", marginTop: 10 },
   emptyTitle: { fontSize: 20, fontFamily: "Urbanist-Bold", color: PRIMARY_COLOR, marginBottom: 10 },
@@ -313,20 +342,26 @@ const styles = StyleSheet.create({
   createClubText: { color: "white", fontSize: 16, fontFamily: "Urbanist-Bold", letterSpacing: 1 },
 
   dashboardSection: { width: "100%" },
-  clubCard: { backgroundColor: PRIMARY_COLOR, borderRadius: 16, padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20, elevation: 4 },
+  clubCard: { backgroundColor: PRIMARY_COLOR, borderRadius: 16, padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10, elevation: 4 },
   clubLabel: { color: "#A0AEC0", fontSize: 12, marginBottom: 4 },
   clubName: { color: "white", fontSize: 20, fontFamily: "Urbanist-Bold" },
   clubLocation: { color: "#E2E8F0", fontSize: 12, marginTop: 4 },
 
-  sectionTitle: { fontSize: 18, fontFamily: "Urbanist-Bold", color: PRIMARY_COLOR, marginBottom: 15 },
+  sectionTitle: { fontSize: 18, fontFamily: "Urbanist-Bold", color: PRIMARY_COLOR, marginBottom: 10 },
   
+  // Target Styles
+  targetCard: { backgroundColor: "white", padding: 15, borderRadius: 12, borderWidth: 1, borderColor: "#3498db", flexDirection: 'row', justifyContent: 'space-between', elevation: 2 },
+  targetTitle: { fontSize: 16, fontWeight: 'bold', color: PRIMARY_COLOR },
+  targetValue: { fontSize: 14, color: "#3498db", fontWeight: 'bold', marginVertical: 4 },
+  targetDate: { fontSize: 12, color: "gray" },
+  addTargetBox: { borderWidth: 1, borderColor: "#3498db", borderStyle: 'dashed', borderRadius: 12, padding: 20, alignItems: 'center', backgroundColor: '#F0F9FF' },
+
   menuGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   menuItem: { width: "48%", aspectRatio: 1.3, borderRadius: 12, justifyContent: "center", alignItems: "center", marginBottom: 15, elevation: 2 },
   menuText: { color: "white", fontSize: 14, fontFamily: "Urbanist-Bold", marginTop: 8 },
 
   programCard: { backgroundColor: "#F9FAFB", padding: 20, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", alignItems: "center" },
 
-  // Active Plan Card Styles
   activePlanCard: { backgroundColor: "white", padding: 20, borderRadius: 16, borderWidth: 1, borderColor: "#E0E7FF", elevation: 3, shadowColor: "#000", shadowOpacity: 0.1 },
   planHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   planTitle: { fontSize: 18, fontWeight: "bold", color: PRIMARY_COLOR, flex: 1 },
