@@ -94,6 +94,7 @@ export default function HomeScreen() {
     setTodayProgram(planData);
 
     // 3. TARGET LATIHAN (SIMPLE FETCH: Ambil Terbaru)
+    // Logika dikembalikan ke semula: Ambil target terakhir tanpa filter hari
     const { data: targetData } = await supabase
       .from("training_targets")
       .select("*")
@@ -272,9 +273,11 @@ const AthleteDashboard = ({ membership, todayProgram, target }: { membership: an
           </TouchableOpacity>
        </View>
 
-       {/* 4. PROGRAM HARI INI */}
-       <Text style={[styles.sectionTitle, {marginTop: 10}]}>Program Hari Ini</Text>
+       {/* 4. PROGRAM HARI INI - FIXED: ADA TOMBOL INPUT MANUAL */}
+       <Text style={[styles.sectionTitle, {marginTop: 10}]}>Latihan Hari Ini</Text>
+       
        {todayProgram ? (
+         // Jika ada program dari Coach
          <View style={styles.activePlanCard}>
             <View style={styles.planHeader}>
               <Text style={styles.planTitle}>{todayProgram.title}</Text>
@@ -303,8 +306,15 @@ const AthleteDashboard = ({ membership, todayProgram, target }: { membership: an
             )}
          </View>
        ) : (
+         // Jika TIDAK ADA program dari Coach -> Munculkan Tombol Input Manual
          <View style={styles.programCard}>
-            <Text style={styles.emptyDesc}>Tidak ada jadwal latihan untuk HARI INI.</Text>
+            <Text style={styles.emptyDesc}>Tidak ada jadwal dari coach hari ini.</Text>
+            <TouchableOpacity 
+              style={[styles.actionButton, {marginTop: 15, backgroundColor: '#27ae60'}]} 
+              onPress={() => router.push({ pathname: "/InputLog" })} // Tanpa params -> mode manual
+            >
+                <Text style={styles.actionButtonText}>+ Input Latihan Mandiri</Text>
+            </TouchableOpacity>
          </View>
        )}
     </View>
@@ -346,7 +356,7 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontSize: 18, fontFamily: "Urbanist-Bold", color: PRIMARY_COLOR, marginBottom: 10 },
   
-  // Target Styles (Tanpa Tombol Hapus)
+  // Target Styles (Tanpa Tombol Hapus - Sesuai Permintaan Semula)
   targetCard: { backgroundColor: "white", padding: 15, borderRadius: 12, borderWidth: 1, borderColor: "#3498db", flexDirection: 'row', justifyContent: 'space-between', elevation: 2 },
   targetTitle: { fontSize: 16, fontWeight: 'bold', color: PRIMARY_COLOR },
   targetValue: { fontSize: 14, color: "#3498db", fontWeight: 'bold', marginVertical: 4 },
