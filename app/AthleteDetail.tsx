@@ -1,7 +1,7 @@
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router"; // ✅ Tambah useFocusEffect
+import React, { useCallback, useState } from "react"; // ✅ Tambah useCallback
 import {
   Alert,
   Modal,
@@ -10,8 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  ActivityIndicator
+  View
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -35,12 +34,15 @@ export default function AthleteDetailScreen() {
   const [newDesc, setNewDesc] = useState("");
   const [targetDist, setTargetDist] = useState("");
 
-  useEffect(() => {
-    fetchData();
-  }, [athleteId]);
+  // ✅ GANTI useEffect JADI useFocusEffect (Agar data selalu refresh saat dibuka)
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [athleteId])
+  );
 
   const fetchData = async () => {
-    setLoading(true);
+    // setLoading(true); // Opsional: Bisa dikomen agar tidak loading terus saat refresh
     await Promise.all([fetchTrainingPlans(), fetchTarget()]);
     setLoading(false);
   };
@@ -69,7 +71,7 @@ export default function AthleteDetailScreen() {
           marked: true, 
           dotColor: dotColor,
           data: plan,
-          log: plan.training_logs?.[0] // Simpan data log disini
+          log: plan.training_logs?.[0] // Simpan data log disini untuk ditampilkan
         };
       });
       setPlans(markedDates);
@@ -133,7 +135,7 @@ export default function AthleteDetailScreen() {
     } catch (err) { Alert.alert("Gagal", "Error database."); }
   };
 
-  // 5. KIRIM FEEDBACK (INI FITUR YANG KAMU CARI)
+  // 5. KIRIM FEEDBACK (FITUR INTI)
   const giveFeedback = async (logId: string, feedback: string) => {
     try {
       const { error } = await supabase
@@ -144,7 +146,7 @@ export default function AthleteDetailScreen() {
       if (error) throw error;
       
       Alert.alert("Terkirim", "Feedback berhasil disimpan.");
-      fetchTrainingPlans(); // Refresh data
+      fetchTrainingPlans(); // Refresh data agar tombol berubah jadi teks
     } catch (err) {
       Alert.alert("Error", "Gagal menyimpan feedback.");
     }
