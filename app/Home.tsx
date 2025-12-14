@@ -1,31 +1,30 @@
+import React, { useCallback, useState } from "react";
+import {
+  ImageBackground,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+  Alert
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Urbanist_400Regular,
   Urbanist_700Bold,
   useFonts,
 } from "@expo-google-fonts/urbanist";
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  ImageBackground,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../Database/supabaseClient";
 
 const PRIMARY_COLOR = "#1C315E";
 const SECONDARY_COLOR = "#2D4B8E";
 const BUTTON_COLOR = "#112952";
-const ACCENT_COLOR = "#E6EBF5";
 
 export default function HomeScreen() {
   const [fontsLoaded] = useFonts({
@@ -40,9 +39,8 @@ export default function HomeScreen() {
   const [myClub, setMyClub] = useState<any>(null); 
   const [myMembership, setMyMembership] = useState<any>(null); 
   const [todayProgram, setTodayProgram] = useState<any>(null); 
-  const [myTarget, setMyTarget] = useState<any>(null); // <--- VARIABLE BARU: TARGET
+  const [myTarget, setMyTarget] = useState<any>(null);
 
-  // --- 1. LOGIKA UTAMA ---
   const fetchData = async () => {
     try {
       const jsonValue = await AsyncStorage.getItem("userSession");
@@ -95,7 +93,7 @@ export default function HomeScreen() {
       .maybeSingle();
     setTodayProgram(planData);
 
-    // 3. TARGET LATIHAN TERBARU (Sesuai Request)
+    // 3. TARGET LATIHAN (SIMPLE FETCH: Ambil Terbaru)
     const { data: targetData } = await supabase
       .from("training_targets")
       .select("*")
@@ -103,6 +101,7 @@ export default function HomeScreen() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
     setMyTarget(targetData);
   };
 
@@ -137,7 +136,6 @@ export default function HomeScreen() {
           {user?.role === "Coach" ? (
             <CoachDashboard club={myClub} />
           ) : (
-            // Kirim data target ke tampilan Athlete
             <AthleteDashboard 
               membership={myMembership} 
               todayProgram={todayProgram} 
@@ -212,7 +210,6 @@ const CoachDashboard = ({ club }: { club: any }) => {
   );
 };
 
-// --- DASHBOARD ATHLETE (DENGAN TARGET DI ATAS) ---
 const AthleteDashboard = ({ membership, todayProgram, target }: { membership: any, todayProgram: any, target: any }) => {
   if (!membership) {
     return (
@@ -229,7 +226,7 @@ const AthleteDashboard = ({ membership, todayProgram, target }: { membership: an
   return (
     <View style={styles.dashboardSection}>
        
-       {/* 1. SECTION TARGET LATIHAN (POSISI PALING ATAS) */}
+       {/* 1. SECTION TARGET LATIHAN */}
        <Text style={styles.sectionTitle}>Target Saya</Text>
        {target ? (
          <View style={styles.targetCard}>
@@ -244,7 +241,7 @@ const AthleteDashboard = ({ membership, todayProgram, target }: { membership: an
                }]}>
                  <Text style={styles.statusText}>{target.status.toUpperCase()}</Text>
                </View>
-               <Ionicons name="flag" size={30} color={PRIMARY_COLOR} style={{marginTop: 10}} />
+               <Ionicons name="flag" size={24} color={PRIMARY_COLOR} style={{marginTop: 10}} />
             </View>
          </View>
        ) : (
@@ -264,7 +261,7 @@ const AthleteDashboard = ({ membership, todayProgram, target }: { membership: an
           <FontAwesome5 name="running" size={32} color="white" opacity={0.8} />
        </View>
 
-       {/* 3. MENU NAVIGASI ATHLETE */}
+       {/* 3. MENU STATISTIK */}
        <View style={{flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10}}>
           <TouchableOpacity 
             style={{flex:1, backgroundColor: '#8e44ad', padding: 15, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}
@@ -275,7 +272,7 @@ const AthleteDashboard = ({ membership, todayProgram, target }: { membership: an
           </TouchableOpacity>
        </View>
 
-       {/* 4. SECTION PROGRAM HARI INI */}
+       {/* 4. PROGRAM HARI INI */}
        <Text style={[styles.sectionTitle, {marginTop: 10}]}>Program Hari Ini</Text>
        {todayProgram ? (
          <View style={styles.activePlanCard}>
@@ -349,7 +346,7 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontSize: 18, fontFamily: "Urbanist-Bold", color: PRIMARY_COLOR, marginBottom: 10 },
   
-  // Target Styles
+  // Target Styles (Tanpa Tombol Hapus)
   targetCard: { backgroundColor: "white", padding: 15, borderRadius: 12, borderWidth: 1, borderColor: "#3498db", flexDirection: 'row', justifyContent: 'space-between', elevation: 2 },
   targetTitle: { fontSize: 16, fontWeight: 'bold', color: PRIMARY_COLOR },
   targetValue: { fontSize: 14, color: "#3498db", fontWeight: 'bold', marginVertical: 4 },

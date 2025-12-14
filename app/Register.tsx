@@ -46,7 +46,7 @@ const GoogleIcon = () => (
   </Svg>
 );
 
-// ✅ IP Address yang benar dari WiFi
+// ✅ IP Address Backend (Disimpan dulu, tidak dipakai sementara agar tidak error network)
 const BACKEND_URL = "http://192.168.1.23:5000";
 
 const Register = () => {
@@ -128,7 +128,6 @@ const Register = () => {
       role: "",
     };
 
-    // Validasi username
     if (!form.username.trim()) {
       newErrors.username = "Username harus diisi";
       isValid = false;
@@ -137,7 +136,6 @@ const Register = () => {
       isValid = false;
     }
 
-    // Validasi email
     if (!form.email.trim()) {
       newErrors.email = "Email harus diisi";
       isValid = false;
@@ -146,7 +144,6 @@ const Register = () => {
       isValid = false;
     }
 
-    // Validasi password
     if (!form.password) {
       newErrors.password = "Password harus diisi";
       isValid = false;
@@ -155,7 +152,6 @@ const Register = () => {
       isValid = false;
     }
 
-    // Validasi confirm password
     if (!form.confirmPassword) {
       newErrors.confirmPassword = "Konfirmasi password harus diisi";
       isValid = false;
@@ -164,13 +160,11 @@ const Register = () => {
       isValid = false;
     }
 
-    // Validasi gender
     if (!form.gender) {
       newErrors.gender = "Pilih gender terlebih dahulu";
       isValid = false;
     }
 
-    // Validasi role
     if (!form.role) {
       newErrors.role = "Pilih role terlebih dahulu";
       isValid = false;
@@ -210,7 +204,8 @@ const Register = () => {
     }
   };
 
-  // ✅ Handle Register - FIXED VERSION
+  // ✅ Handle Register - BYPASS OTP VERSION (LANGSUNG LOGIN)
+  // Perubahan hanya di sini: Menghilangkan fetch ke backend agar tidak error
   const handleRegister = async () => {
     const isValid = await validateForm();
     if (!isValid) {
@@ -221,27 +216,23 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      console.log("🚀 Starting registration process...");
+      console.log("🚀 Starting registration process (Bypass OTP)...");
 
       // 1️⃣ Cek username sudah ada
       const usernameExists = await checkUsernameExists(form.username);
       if (usernameExists) {
-        setErrors({ ...errors, username: "Username sudah terdaftar" });
-        Alert.alert("Error", "Username sudah terdaftar");
-        setIsLoading(false);
-        return;
+        setErrors((prev) => ({ ...prev, username: "Username sudah terdaftar" }));
+        throw new Error("Username sudah terdaftar");
       }
 
       // 2️⃣ Cek email sudah ada
       const emailExists = await checkEmailExists(form.email);
       if (emailExists) {
-        setErrors({ ...errors, email: "Email sudah terdaftar" });
-        Alert.alert("Error", "Email sudah terdaftar");
-        setIsLoading(false);
-        return;
+        setErrors((prev) => ({ ...prev, email: "Email sudah terdaftar" }));
+        throw new Error("Email sudah terdaftar");
       }
 
-      // 3️⃣ Insert user TANPA OTP (biarkan backend yang handle)
+      // 3️⃣ Insert user TANPA OTP (Langsung ke Supabase)
       const { data: userData, error } = await supabase
         .from("users")
         .insert([
@@ -251,7 +242,7 @@ const Register = () => {
             password: form.password,
             gender: form.gender,
             role: form.role,
-            is_verified: false,
+            is_verified: false, // Sementara false, tapi user bisa langsung login
             created_at: new Date().toISOString(),
           },
         ])
@@ -260,77 +251,40 @@ const Register = () => {
 
       if (error) {
         console.error("❌ Error inserting user:", error);
-        Alert.alert("Error", "Gagal mendaftarkan user");
-        setIsLoading(false);
-        return;
+        throw new Error("Gagal mendaftarkan user ke database.");
       }
 
-      console.log("✅ User created:", userData);
+      console.log("✅ User created successfully:", userData);
 
-      // 4️⃣ Kirim OTP via backend (backend yang generate & simpan OTP)
-      console.log(`📧 Sending OTP request to: ${BACKEND_URL}/send-otp`);
-      console.log(`📧 Email: ${form.email}`);
+      // --- SKIP OTP (Backend Fetch Disabled) ---
+      /*
+      console.log(`📧 Sending OTP to: ${BACKEND_URL}/send-otp`);
+      // ... kode fetch backend di-comment ...
+      */
 
-      const response = await fetch(`${BACKEND_URL}/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email }),
-      });
-
-      console.log("📡 Response status:", response.status);
-
-      if (!response.ok) {
-        console.error("❌ Backend response not OK:", response.status);
-        Alert.alert("Error", "Gagal menghubungi server. Coba lagi nanti.");
-        setIsLoading(false);
-        return;
-      }
-
-      const result = await response.json();
-      console.log("📦 Backend response:", result);
-
-      if (!result.success) {
-        console.error("❌ Backend gagal kirim OTP:", result.message);
-        Alert.alert("Error", result.message || "Gagal mengirim OTP");
-        setIsLoading(false);
-        return;
-      }
-
-      console.log(`✅ OTP berhasil dikirim ke ${form.email}`);
-
-      // 5️⃣ Stop loading SEBELUM Alert
-      setIsLoading(false);
-
-      // 6️⃣ Tampilkan Alert & navigate
+      // 4️⃣ SUKSES LANGSUNG! Navigate ke Login
       Alert.alert(
-        "Verifikasi Email",
-        "Kode OTP telah dikirim ke email kamu!",
+        "Registrasi Berhasil",
+        "Akun berhasil dibuat. Silakan login untuk melanjutkan.",
         [
           {
-            text: "OK",
+            text: "OK, Login Sekarang",
             onPress: () => {
-              router.push({
-                pathname: "./CekEmail",
-                params: {
-                  email: form.email,
-                  username: form.username,
-                },
-              });
+              // Arahkan langsung ke Login karena OTP di-skip
+              router.push("/Login"); 
             },
           },
         ],
         { cancelable: false }
       );
-    } catch (error) {
+
+    } catch (error: any) { 
       console.error("❌ Register error:", error);
-      console.error("Error details:", {
-        name: error.name,
-        message: error.message,
-      });
-      Alert.alert(
-        "Error",
-        "Tidak dapat terhubung ke server. Pastikan backend sudah berjalan."
-      );
+      
+      const errorMessage = error.message || "Terjadi kesalahan sistem.";
+      Alert.alert("Registrasi Gagal", errorMessage);
+      
+    } finally {
       setIsLoading(false);
     }
   };
@@ -343,7 +297,6 @@ const Register = () => {
     );
   }
 
-  // Mapping field ke key form
   const fieldMap: Record<string, keyof typeof form> = {
     Username: "username",
     Email: "email",
@@ -357,7 +310,6 @@ const Register = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -368,7 +320,6 @@ const Register = () => {
           <Text style={styles.title}>Hello! Register to get started</Text>
         </View>
 
-        {/* Form */}
         <View style={styles.form}>
           {Object.keys(fieldMap).map((field, i) => {
             const fieldKey = fieldMap[field];
@@ -385,7 +336,6 @@ const Register = () => {
                   value={form[fieldKey]}
                   onChangeText={(t) => {
                     setForm({ ...form, [fieldKey]: t });
-                    // Clear error when user starts typing
                     if (errors[fieldKey]) {
                       setErrors({ ...errors, [fieldKey]: "" });
                     }
@@ -400,16 +350,7 @@ const Register = () => {
 
           {/* Gender Section */}
           <View style={{ marginTop: 8 }}>
-            <Text
-              style={{
-                fontFamily: "Urbanist-SemiBold",
-                fontSize: 15,
-                color: "#111827",
-                marginBottom: 10,
-              }}
-            >
-              Choose your gender
-            </Text>
+            <Text style={styles.sectionLabel}>Choose your gender</Text>
             <View style={styles.genderContainer}>
               {["Man", "Woman"].map((g) => {
                 const active = form.gender === g;
@@ -428,9 +369,7 @@ const Register = () => {
                       ]}
                       onPress={() => {
                         setForm({ ...form, gender: g });
-                        if (errors.gender) {
-                          setErrors({ ...errors, gender: "" });
-                        }
+                        if (errors.gender) setErrors({ ...errors, gender: "" });
                         animateGender();
                       }}
                       activeOpacity={0.8}
@@ -455,16 +394,7 @@ const Register = () => {
 
           {/* Role Selector */}
           <View style={{ marginTop: 18 }}>
-            <Text
-              style={{
-                fontFamily: "Urbanist-SemiBold",
-                fontSize: 15,
-                color: "#111827",
-                marginBottom: 10,
-              }}
-            >
-              Choose your role
-            </Text>
+            <Text style={styles.sectionLabel}>Choose your role</Text>
             <View style={styles.roleWrapper}>
               <Animated.View
                 style={[
@@ -484,9 +414,7 @@ const Register = () => {
                   style={styles.roleBtn}
                   onPress={() => {
                     setForm({ ...form, role: r });
-                    if (errors.role) {
-                      setErrors({ ...errors, role: "" });
-                    }
+                    if (errors.role) setErrors({ ...errors, role: "" });
                   }}
                   activeOpacity={0.8}
                 >
@@ -602,6 +530,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
     fontFamily: "Urbanist-Regular",
+  },
+  sectionLabel: {
+    fontFamily: "Urbanist-SemiBold",
+    fontSize: 15,
+    color: "#111827",
+    marginBottom: 10,
   },
   genderContainer: { flexDirection: "row", gap: 12 },
   genderButton: {

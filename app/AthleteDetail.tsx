@@ -29,6 +29,7 @@ export default function AthleteDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState<any>(null);
   
+  // Modal
   const [modalVisible, setModalVisible] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -44,19 +45,23 @@ export default function AthleteDetailScreen() {
     setLoading(false);
   };
 
-  // --- 1. AMBIL PROGRAM ---
+  // 1. AMBIL DATA PROGRAM & LOG (PENTING BUAT FEEDBACK)
   const fetchTrainingPlans = async () => {
     try {
+      // Join ke training_logs untuk cek apakah atlet sudah input
       const { data, error } = await supabase
         .from("training_plans")
-        .select(`*, training_logs (*)`)
+        .select(`
+          *,
+          training_logs (*) 
+        `)
         .eq("athlete_id", athleteId);
 
       if (error) throw error;
 
       const markedDates: any = {};
       data?.forEach((plan) => {
-        let dotColor = 'orange'; 
+        let dotColor = 'orange'; // Scheduled
         if (plan.status === 'completed') dotColor = 'green';
         if (plan.status === 'missed') dotColor = 'red';
 
@@ -64,7 +69,7 @@ export default function AthleteDetailScreen() {
           marked: true, 
           dotColor: dotColor,
           data: plan,
-          log: plan.training_logs?.[0] 
+          log: plan.training_logs?.[0] // Simpan data log disini
         };
       });
       setPlans(markedDates);
@@ -73,7 +78,7 @@ export default function AthleteDetailScreen() {
     }
   };
 
-  // --- 2. AMBIL TARGET ---
+  // 2. AMBIL TARGET
   const fetchTarget = async () => {
     try {
       const { data } = await supabase
@@ -86,47 +91,63 @@ export default function AthleteDetailScreen() {
       
       setTarget(data);
     } catch (err) {
-      console.error("Gagal ambil target", err);
+      console.error(err);
     }
   };
 
-  // --- 3. APPROVE TARGET ---
+  // 3. ACC/TOLAK TARGET
   const handleTargetAction = async (status: 'accepted' | 'rejected') => {
     if (!target) return;
     try {
       const { error } = await supabase.from("training_targets").update({ status: status }).eq("id", target.id);
       if (error) throw error;
-      Alert.alert("Sukses", status === 'accepted' ? "Target disetujui!" : "Target ditolak.");
+      Alert.alert("Sukses", status === 'accepted' ? "Target diterima!" : "Target ditolak.");
       fetchTarget();
     } catch (err) {
       Alert.alert("Error", "Gagal update target.");
     }
   };
 
-  // --- 4. TAMBAH PROGRAM ---
+  // 4. BUAT PROGRAM BARU
   const handleAddPlan = async () => {
     if (!newTitle || !targetDist) { Alert.alert("Error", "Isi judul & jarak."); return; }
     try {
       const jsonValue = await AsyncStorage.getItem("userSession");
       const coachData = JSON.parse(jsonValue || "{}");
+
       const { error } = await supabase.from("training_plans").insert([{
-          coach_id: coachData.id, athlete_id: athleteId, date: selectedDate,
-          title: newTitle, description: newDesc, target_distance: parseFloat(targetDist), status: "scheduled"
+          coach_id: coachData.id,
+          athlete_id: athleteId,
+          date: selectedDate,
+          title: newTitle,
+          description: newDesc,
+          target_distance: parseFloat(targetDist),
+          status: "scheduled"
       }]);
+
       if (error) throw error;
       Alert.alert("Sukses", "Program dibuat!");
-      setModalVisible(false); setNewTitle(""); setNewDesc(""); setTargetDist("");
+      setModalVisible(false);
+      setNewTitle(""); setNewDesc(""); setTargetDist("");
       fetchTrainingPlans(); 
     } catch (err) { Alert.alert("Gagal", "Error database."); }
   };
 
-  // --- 5. BERI FEEDBACK (YANG HILANG) ---
+  // 5. KIRIM FEEDBACK (INI FITUR YANG KAMU CARI)
   const giveFeedback = async (logId: string, feedback: string) => {
     try {
-      const { error } = await supabase.from("training_logs").update({ coach_feedback: feedback }).eq("id", logId);
+      const { error } = await supabase
+        .from("training_logs")
+        .update({ coach_feedback: feedback })
+        .eq("id", logId);
+
       if (error) throw error;
-      fetchTrainingPlans(); 
-    } catch (err) { Alert.alert("Error", "Gagal simpan feedback."); }
+      
+      Alert.alert("Terkirim", "Feedback berhasil disimpan.");
+      fetchTrainingPlans(); // Refresh data
+    } catch (err) {
+      Alert.alert("Error", "Gagal menyimpan feedback.");
+    }
   };
 
   const renderSelectedDateInfo = () => {
@@ -138,6 +159,7 @@ export default function AthleteDetailScreen() {
         <Text style={styles.dateTitle}>📅 {selectedDate}</Text>
         {item ? (
           <View>
+            {/* Kartu Program */}
             <View style={styles.planCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardLabel}>PROGRAM</Text>
@@ -148,37 +170,46 @@ export default function AthleteDetailScreen() {
               <Text style={styles.planTarget}>🎯 Target: {item.data.target_distance} km</Text>
             </View>
 
-            {/* --- BAGIAN HASIL LATIHAN & FEEDBACK (YANG HILANG TADI) --- */}
+            {/* Kartu Hasil (Muncul jika completed & ada log) */}
             {item.data.status === 'completed' && item.log && (
               <View style={styles.logCard}>
-                <Text style={styles.cardLabel}>HASIL LATIHAN</Text>
+                <Text style={styles.cardLabel}>HASIL LATIHAN ATLET</Text>
                 <View style={styles.statsRow}>
                   <View style={styles.statItem}><Ionicons name="speedometer" size={18} color={PRIMARY_COLOR} /><Text style={styles.statValue}>{item.log.actual_distance} km</Text></View>
                   <View style={styles.statItem}><Ionicons name="timer" size={18} color={PRIMARY_COLOR} /><Text style={styles.statValue}>{item.log.actual_duration} m</Text></View>
-                  <View style={styles.statItem}><Ionicons name="heart" size={18} color="red" /><Text style={styles.statValue}>{item.log.avg_hr} bpm</Text></View>
+                  <View style={styles.statItem}><Ionicons name="heart" size={18} color="red" /><Text style={styles.statValue}>{item.log.avg_hr || "-"} bpm</Text></View>
                 </View>
                 <Text style={styles.noteText}>"{item.log.notes}"</Text>
                 <Text style={styles.noteText}>Rasanya: {item.log.feeling}</Text>
 
-                {/* AREA FEEDBACK COACH */}
+                {/* --- BAGIAN FEEDBACK COACH --- */}
                 <View style={styles.feedbackSection}>
-                  <Text style={styles.cardLabel}>FEEDBACK</Text>
+                  <Text style={styles.cardLabel}>FEEDBACK COACH</Text>
+                  
                   {item.log.coach_feedback ? (
+                    // Jika SUDAH ada feedback -> Tampilkan Teks
                     <View style={styles.feedbackGiven}>
                       <FontAwesome5 name="check-circle" size={16} color="white" />
                       <Text style={styles.feedbackText}>{item.log.coach_feedback}</Text>
                     </View>
                   ) : (
+                    // Jika BELUM ada -> Tampilkan Tombol
                     <View style={styles.feedbackButtons}>
-                      <TouchableOpacity style={[styles.fbBtn, {backgroundColor: '#22c55e'}]} onPress={() => giveFeedback(item.log.id, "Terlaksana Baik")}><Text style={styles.fbBtnText}>Baik 👍</Text></TouchableOpacity>
-                      <TouchableOpacity style={[styles.fbBtn, {backgroundColor: '#e67e22'}]} onPress={() => giveFeedback(item.log.id, "Terlaksana Buruk")}><Text style={styles.fbBtnText}>Buruk 👎</Text></TouchableOpacity>
-                      <TouchableOpacity style={[styles.fbBtn, {backgroundColor: '#ef4444'}]} onPress={() => giveFeedback(item.log.id, "Tidak Terlaksana")}><Text style={styles.fbBtnText}>Gagal ❌</Text></TouchableOpacity>
+                      <TouchableOpacity style={[styles.fbBtn, {backgroundColor: '#22c55e'}]} onPress={() => giveFeedback(item.log.id, "Terlaksana Baik")}>
+                        <Text style={styles.fbBtnText}>Baik 👍</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.fbBtn, {backgroundColor: '#e67e22'}]} onPress={() => giveFeedback(item.log.id, "Terlaksana Buruk")}>
+                        <Text style={styles.fbBtnText}>Buruk 👎</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.fbBtn, {backgroundColor: '#ef4444'}]} onPress={() => giveFeedback(item.log.id, "Tidak Terlaksana")}>
+                        <Text style={styles.fbBtnText}>Gagal ❌</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
+                {/* ----------------------------- */}
               </View>
             )}
-            {/* --------------------------------------------------------- */}
           </View>
         ) : (
           <View style={{alignItems: 'center'}}>
@@ -260,6 +291,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, backgroundColor: PRIMARY_COLOR },
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "white" },
   headerSubtitle: { fontSize: 12, color: "#cbd5e1" },
+  
   targetSection: { margin: 20, padding: 15, backgroundColor: '#F0F9FF', borderRadius: 12, borderWidth: 1, borderColor: '#BAE6FD' },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: PRIMARY_COLOR },
   targetDetail: { color: '#555', marginTop: 5, marginBottom: 10 },
@@ -267,10 +299,12 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 5 },
   actionBtn: { flex: 1, padding: 10, borderRadius: 8, alignItems: 'center' },
   actionText: { color: 'white', fontWeight: 'bold' },
+
   detailBox: { padding: 20, paddingBottom: 50 },
   hintText: { textAlign: "center", color: "gray", marginTop: 20 },
   dateTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15, color: PRIMARY_COLOR },
   noPlanText: { fontStyle: "italic", color: "gray", marginBottom: 15 },
+
   planCard: { backgroundColor: "white", padding: 15, borderRadius: 12, borderWidth: 1, borderColor: "#eee", marginBottom: 15, elevation: 2 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
   cardLabel: { fontSize: 10, fontWeight: 'bold', color: 'gray', letterSpacing: 1 },
@@ -278,19 +312,24 @@ const styles = StyleSheet.create({
   planTitle: { fontSize: 18, fontWeight: "bold", color: PRIMARY_COLOR },
   planDesc: { color: "#555", fontSize: 14, marginVertical: 5 },
   planTarget: { color: ACCENT_COLOR, fontWeight: "bold", marginTop: 5 },
+
   logCard: { backgroundColor: "#F0F9FF", padding: 15, borderRadius: 12, borderWidth: 1, borderColor: "#BAE6FD" },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 10, backgroundColor: 'white', padding: 10, borderRadius: 8 },
   statItem: { alignItems: 'center' },
   statValue: { fontWeight: 'bold', marginTop: 3 },
   noteText: { fontStyle: 'italic', color: '#333', marginTop: 5 },
+
+  // Styling khusus Feedback
   feedbackSection: { marginTop: 15, borderTopWidth: 1, borderTopColor: '#ddd', paddingTop: 10 },
   feedbackButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   fbBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20 },
   fbBtnText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
   feedbackGiven: { flexDirection: 'row', alignItems: 'center', backgroundColor: PRIMARY_COLOR, padding: 10, borderRadius: 8, marginTop: 5, gap: 8 },
   feedbackText: { color: 'white', fontWeight: 'bold' },
+
   addButton: { backgroundColor: PRIMARY_COLOR, padding: 15, borderRadius: 10, width: '100%', alignItems: "center" },
   addButtonText: { color: "white", fontWeight: "bold" },
+
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 },
   modalContent: { backgroundColor: "white", borderRadius: 15, padding: 20 },
   modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
